@@ -1,0 +1,41 @@
+{
+  "name": "varai",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "VARAI \u2014 The Internet's Referee. Football decisions judged by GenLayer Intelligent Contracts.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/src/server.js",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "genkey": "tsx scripts/generate-key.ts",
+    "deploy:contract": "tsx scripts/deploy-contract.ts",
+    "db:schema": "psql \"$DATABASE_URL\" -f db/schema.sql",
+    "design": "cd design && python3 build.py",
+    "design:card": "cd design && python3 export_card.py",
+    "db:check": "tsx scripts/check-db.ts"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1",
+    "genlayer-js": "^1.1.8",
+    "helmet": "^8.0.0",
+    "pg": "^8.13.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

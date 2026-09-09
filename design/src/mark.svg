@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none" role="img" aria-label="VARAI">
+  <!-- VARAI monogram — the review plane crossing a converging V.
+       Reads simultaneously as: letter V, VAR offside line, narrowing consensus. -->
+  <path d="M20 18 L36 18 L60 79 L84 18 L100 18 L68 100 L52 100 Z" fill="currentColor"/>
+  <g stroke="var(--mark-accent,#D6FF3F)" stroke-linecap="butt">
+    <path d="M8 42 H112" stroke-width="4.2"/>
+    <path d="M26 62 H94" stroke-width="3.4" opacity=".42"/>
+  </g>
+</svg>

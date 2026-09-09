@@ -1,0 +1,163 @@
+/* ============================================================
+   VARAI — DESIGN TOKENS
+   The Internet's Referee
+   ============================================================ */
+
+:root{
+  /* ---- surface ---- */
+  --obsidian:#0B0D0F;
+  --carbon:#111519;
+  --steel:#171C20;
+  --steel-hi:#1D2429;
+  --line:#232A2F;
+  --line-soft:#1A2126;
+
+  /* ---- content ---- */
+  --white:#F1F3EE;
+  --gray:#8D9699;
+  --gray-dim:#5D666A;
+
+  /* ---- signal ---- */
+  --lime:#D6FF3F;
+  --mint:#6EE7C8;
+  --amber:#FFCC66;
+  --red:#FF5C5C;
+
+  --lime-dim:rgba(214,255,63,.14);
+  --lime-line:rgba(214,255,63,.34);
+  --mint-dim:rgba(110,231,200,.12);
+  --red-dim:rgba(255,92,92,.12);
+  --amber-dim:rgba(255,204,102,.12);
+
+  /* ---- type ---- */
+  --f-display:'Space Grotesk',system-ui,sans-serif;
+  --f-text:'DM Sans',system-ui,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,monospace;
+
+  /* ---- shape ---- */
+  --r-sm:10px;
+  --r-md:12px;
+  --r-lg:14px;
+
+  /* ---- motion ---- */
+  --t-fast:150ms;
+  --t-base:240ms;
+  --t-slow:400ms;
+  --ease:cubic-bezier(.22,.68,.24,1);
+  --ease-lock:cubic-bezier(.16,.9,.24,1);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--obsidian);color:var(--white);
+  font-family:var(--f-text);font-size:15px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+::selection{background:var(--lime);color:var(--obsidian)}
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+h1,h2,h3,h4{font-family:var(--f-display);font-weight:700;margin:0;letter-spacing:-.028em;line-height:.94}
+.display{
+  font-family:var(--f-display);font-weight:700;
+  font-size:clamp(38px,5.15vw,76px);line-height:.92;letter-spacing:-.033em;
+  text-transform:uppercase;
+}
+.display .muted{color:var(--gray-dim)}
+.h2{font-size:clamp(28px,3.4vw,46px);letter-spacing:-.03em;text-transform:uppercase}
+
+/* technical micro-label — the voice of the system */
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.tag{
+  font-family:var(--f-mono);font-size:10px;font-weight:500;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--gray);
+}
+.tag-lime{color:var(--lime)}
+.tag-mint{color:var(--mint)}
+.tag-amber{color:var(--amber)}
+.tag-red{color:var(--red)}
+.lede{color:var(--gray);font-size:16px;line-height:1.62;max-width:56ch}
+
+/* ============================================================
+   PRIMITIVES
+   ============================================================ */
+.rule{height:1px;background:var(--line);border:0;margin:0}
+
+/* eyebrow: mono label with a leading tick */
+.eyebrow{display:flex;align-items:center;gap:10px}
+.eyebrow::before{content:"";width:18px;height:1px;background:var(--lime)}
+
+/* card = broadcast equipment panel */
+.panel{
+  background:var(--carbon);border:1px solid var(--line);border-radius:var(--r-md);
+  position:relative;
+}
+.panel-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:11px 14px;border-bottom:1px solid var(--line-soft);
+}
+.panel-body{padding:16px}
+
+/* corner registration marks — physical-equipment cue */
+.reg{position:absolute;width:7px;height:7px;border:1px solid var(--line);pointer-events:none}
+.reg.tl{top:-1px;left:-1px;border-right:0;border-bottom:0;border-color:var(--gray-dim)}
+.reg.br{bottom:-1px;right:-1px;border-left:0;border-top:0;border-color:var(--gray-dim)}
+
+/* status dot */
+.dot{width:5px;height:5px;border-radius:50%;background:var(--gray-dim);flex:none}
+.dot.live{background:var(--red);box-shadow:0 0 0 0 var(--red);animation:pulse 2s infinite}
+.dot.ok{background:var(--lime)}
+.dot.work{background:var(--amber)}
+@keyframes pulse{
+  0%{box-shadow:0 0 0 0 rgba(255,92,92,.5)}
+  70%{box-shadow:0 0 0 6px rgba(255,92,92,0)}
+  100%{box-shadow:0 0 0 0 rgba(255,92,92,0)}
+}
+
+/* buttons */
+.btn{
+  font-family:var(--f-display);font-size:13px;font-weight:600;letter-spacing:.01em;
+  display:inline-flex;align-items:center;gap:9px;
+  padding:12px 20px;border-radius:var(--r-sm);border:1px solid var(--line);
+  background:transparent;color:var(--white);cursor:pointer;
+  transition:border-color var(--t-fast) var(--ease),background var(--t-fast) var(--ease),
+             color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease);
+  text-decoration:none;
+}
+.btn:hover{border-color:var(--gray-dim);background:var(--steel)}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--lime);color:var(--obsidian);border-color:var(--lime)}
+.btn-primary:hover{background:#E4FF6B;border-color:#E4FF6B;color:var(--obsidian)}
+.btn .k{font-family:var(--f-mono);font-size:10px;opacity:.55;letter-spacing:.1em}
+
+/* meter / consensus bar — segmented like broadcast equipment */
+.meter{display:flex;gap:3px;height:8px}
+.meter i{
+  flex:1;background:var(--steel-hi);border-radius:1px;
+  transition:background var(--t-base) var(--ease);
+}
+.meter i.on{background:var(--mint)}
+.meter.lime i.on{background:var(--lime)}
+.meter.amber i.on{background:var(--amber)}
+
+/* thin progress track */
+.track{height:2px;background:var(--steel-hi);border-radius:1px;overflow:hidden}
+.track>span{display:block;height:100%;background:var(--lime);width:0;transition:width var(--t-slow) var(--ease)}
+
+/* grain + scanline atmosphere (very restrained) */
+.grain{
+  position:fixed;inset:0;pointer-events:none;z-index:99;opacity:.5;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
+}
+
+/* layout helpers */
+.wrap{max-width:1360px;margin:0 auto;padding:0 32px}
+.stack{display:flex;flex-direction:column}
+.row{display:flex;align-items:center}
+.spread{display:flex;align-items:center;justify-content:space-between}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}

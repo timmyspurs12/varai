@@ -1,0 +1,54 @@
+# ============================================================
+# Render Blueprint — VARAI API
+#
+# Deploy:  push this repo to GitHub, then on Render
+#          New +  →  Blueprint  →  select the repo.
+#
+# Everything marked sync:false must be set in the Render
+# dashboard (Environment tab). Never commit secrets.
+# ============================================================
+
+services:
+  - type: web
+    name: varai-api
+    runtime: node
+    plan: free
+    region: frankfurt          # closest free region to Nigeria; also: oregon, singapore
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Render injects PORT automatically; the app reads it.
+
+      # ---- Demo vs real judging -------------------------------------
+      # Start with true to verify the deploy works, then flip to false
+      # once the contract is deployed and the signing key is funded.
+      - key: VARAI_DEMO_MODE
+        value: "true"
+
+      # ---- Database (Neon / Supabase connection string) -------------
+      - key: DATABASE_URL
+        sync: false            # set in dashboard — it is a secret
+      - key: DATABASE_SSL
+        value: "true"          # required by Neon and Supabase
+
+      # ---- GenLayer --------------------------------------------------
+      - key: GENLAYER_NETWORK
+        value: studionet
+      - key: GENLAYER_CONTRACT_ADDRESS
+        sync: false            # from `npm run deploy:contract`
+      - key: GENLAYER_PRIVATE_KEY
+        sync: false            # SECRET — dashboard only, never in git
+      - key: GENLAYER_EXPLORER_BASE
+        sync: false
+
+      # ---- Security --------------------------------------------------
+      - key: CORS_ORIGIN
+        sync: false            # set to your real frontend origin
+      - key: RATE_LIMIT_MAX
+        value: "60"
