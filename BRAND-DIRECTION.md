@@ -128,3 +128,44 @@ No football. No whistle. No card. It holds down to 16px.
 | `build.py` | Assembles `VARAI.html` |
 
 Rebuild with `python3 build.py`.
+
+## Resolved: hero hierarchy
+
+The headline now runs `clamp(40px, 6.6vw, 96px)` at `line-height:.88`, wrapped to
+`14ch`. The hero scrim was rebalanced at the same time: heavy behind the type on
+the left, clearing to fully transparent by 86% across.
+
+Both halves of that change matter. Scaling the type up while leaving the old scrim
+in place erased the pitch reconstruction almost entirely — the art was being
+buried by accident rather than receding by design. Lifting the right-hand scrim
+lets the trajectory, contact crosshair and DEFENDER/ATTACKER labels read as
+evidence behind the claim, which is the whole argument of the page. Verified at
+1440px and 390px: no headline overflow, no horizontal page scroll.
+
+## Resolved: club identity — letter tiles, permanently
+
+**Real club crests will not be used.** This is a legal decision, not an aesthetic
+one, and it should not be revisited without counsel.
+
+Club crests are registered trademarks and the artwork is separately
+copyrighted. The recurring professional advice is consistent: using team *names*
+for factual identification is defensible nominative fair use, but logos are
+"more than is needed" to identify a club and materially raise the risk. Clubs
+run brand-protection desks for exactly this (Liverpool publishes
+`brand.protection@liverpoolfc.com`), Premier League collective branding is
+licensed centrally rather than club-by-club, and licences are priced for
+merchandise businesses, not demos.
+
+VARAI's exposure is worse than a scores app. A product that *publicly
+adjudicates a club's matches* and renders verdicts about them invites an
+implied-endorsement or disparagement claim on top of straight infringement — the
+suggestion that a club sanctioned a ruling against itself.
+
+So the letter tile is now the intended design, not a placeholder: club initial,
+club colour, no protected artwork, with corner ticks that read as an
+identification marker rather than a badge. It ships anywhere with zero licensing
+exposure — and it suits the forensic register of the product better than a
+wall of borrowed logos would.
+
+Club **names** in plain text are retained: factual identification, lowest-risk
+approach, and necessary for the product to function.

@@ -35,13 +35,15 @@
 .hero-media .pitch-svg{width:100%;height:100%;display:block;object-fit:cover}
 .hero-scrim{
   position:absolute;inset:0;z-index:1;pointer-events:none;
+  /* Heavy behind the headline (left), clearing to nothing on the right so the
+     pitch reconstruction stays legible instead of being washed to black. */
   background:
-    linear-gradient(180deg,rgba(11,13,15,.88) 0%,rgba(11,13,15,.30) 34%,rgba(11,13,15,.40) 68%,#0B0D0F 100%),
-    linear-gradient(90deg,rgba(11,13,15,.93) 0%,rgba(11,13,15,.42) 46%,rgba(11,13,15,.05) 82%);
+    linear-gradient(180deg,rgba(11,13,15,.86) 0%,rgba(11,13,15,.20) 34%,rgba(11,13,15,.26) 68%,#0B0D0F 100%),
+    linear-gradient(90deg,rgba(11,13,15,.96) 0%,rgba(11,13,15,.34) 52%,rgba(11,13,15,0) 86%);
 }
 .hero-in{position:relative;z-index:2;max-width:1360px;margin:0 auto;padding:74px 32px 34px}
 .hero-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,.58fr);gap:60px;align-items:end}
-.hero h1{margin:20px 0 0;max-width:15ch}
+.hero h1{margin:20px 0 0;max-width:14ch}
 .hero .display .lime{color:var(--lime)}
 .hero-sub{margin-top:24px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
 
@@ -119,7 +121,29 @@
 /* middle: match info */
 .scoreline{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:4px 0 18px}
 .team{display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center}
-.crest{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);display:grid;place-items:center;font-family:var(--f-display);font-weight:700;font-size:14px}
+.crest{
+  /* DELIBERATELY NOT A CLUB CREST.
+     Club crests are registered trademarks; using them in a product that
+     publicly adjudicates a club's matches invites both an infringement claim
+     and an implied-endorsement claim. This is a neutral identity chip: the
+     club's initial, its colour, no protected artwork. Ships in any
+     jurisdiction with no licensing exposure. See BRAND-DIRECTION.md. */
+  position:relative;width:38px;height:38px;border-radius:9px;
+  border:1px solid var(--line);display:grid;place-items:center;
+  font-family:var(--f-display);font-weight:700;font-size:15px;
+  letter-spacing:-.01em;
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,0)),
+    var(--obsidian);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+}
+/* Corner ticks — reads as an identification marker, not a badge. */
+.crest::before,.crest::after{
+  content:"";position:absolute;width:5px;height:5px;opacity:.5;
+  border-color:inherit;border-style:solid;
+}
+.crest::before{top:3px;left:3px;border-width:1px 0 0 1px}
+.crest::after{bottom:3px;right:3px;border-width:0 1px 1px 0}
 .team .nm{font-family:var(--f-display);font-size:14px;font-weight:600;letter-spacing:-.01em}
 .scorebox{font-family:var(--f-mono);font-size:30px;font-weight:500;letter-spacing:.04em}
 .kv{display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-top:1px solid var(--line-soft)}

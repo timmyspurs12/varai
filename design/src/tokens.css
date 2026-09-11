@@ -62,7 +62,7 @@ body{
 h1,h2,h3,h4{font-family:var(--f-display);font-weight:700;margin:0;letter-spacing:-.028em;line-height:.94}
 .display{
   font-family:var(--f-display);font-weight:700;
-  font-size:clamp(38px,5.15vw,76px);line-height:.92;letter-spacing:-.033em;
+  font-size:clamp(40px,6.6vw,96px);line-height:.88;letter-spacing:-.04em;
   text-transform:uppercase;
 }
 .display .muted{color:var(--gray-dim)}
