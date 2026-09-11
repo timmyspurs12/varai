@@ -33,6 +33,8 @@ export interface NewVerdict {
   genlayerContract: string | null;
   source: 'GENLAYER' | 'DEMO';
   validators: Omit<ValidatorResult, 'id' | 'verdictId'>[];
+  /** Set when this row is an appeal ruling: the id of the verdict it reviewed. */
+  appealOf?: string | null;
 }
 
 export interface Store {
@@ -44,6 +46,8 @@ export interface Store {
   getCase(id: string): Promise<FootballCase | null>;
   setStatus(id: string, status: CaseStatus, extra?: { txHash?: string; failureReason?: string | null }): Promise<void>;
   saveVerdict(v: NewVerdict): Promise<Verdict>;
+  /** The appeal ruling for a case, if one exists. */
+  getAppealByCase(caseId: string): Promise<Verdict | null>;
   getVerdictByCase(caseId: string): Promise<Verdict | null>;
   getVerdict(id: string): Promise<Verdict | null>;
   close(): Promise<void>;
@@ -130,14 +134,22 @@ class MemoryStore implements Store {
       genlayerTransaction: v.genlayerTransaction,
       genlayerContract: v.genlayerContract,
       source: v.source,
+      appealOf: v.appealOf ?? null,
       createdAt: nowIso(),
     };
     this.verdicts.set(id, verdict);
     return verdict;
   }
 
+  /** The ORIGINAL verdict — never the appeal ruling. */
   async getVerdictByCase(caseId: string) {
-    return [...this.verdicts.values()].find((v) => v.caseId === caseId) ?? null;
+    return (
+      [...this.verdicts.values()].find((v) => v.caseId === caseId && !v.appealOf) ?? null
+    );
+  }
+
+  async getAppealByCase(caseId: string) {
+    return [...this.verdicts.values()].find((v) => v.caseId === caseId && !!v.appealOf) ?? null;
   }
 
   async getVerdict(id: string) {
@@ -328,8 +340,8 @@ class PostgresStore implements Store {
         `INSERT INTO verdicts (id, case_id, decision, confidence,
              consensus_agree, consensus_disagree, consensus_total,
              reasoning, criteria, alternative_interpretation,
-             genlayer_transaction, genlayer_contract, source)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+             genlayer_transaction, genlayer_contract, source, appeal_of)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
         [
           id,
           v.caseId,
@@ -344,6 +356,7 @@ class PostgresStore implements Store {
           v.genlayerTransaction,
           v.genlayerContract,
           v.source,
+          v.appealOf ?? null,
         ],
       );
 
@@ -367,8 +380,21 @@ class PostgresStore implements Store {
     }
   }
 
+  /** The ORIGINAL verdict — appeal rulings are excluded. */
   async getVerdictByCase(caseId: string) {
-    const { rows } = await this.pool.query('SELECT * FROM verdicts WHERE case_id = $1', [caseId]);
+    const { rows } = await this.pool.query(
+      'SELECT * FROM verdicts WHERE case_id = $1 AND appeal_of IS NULL',
+      [caseId],
+    );
+    if (rows.length === 0) return null;
+    return this.hydrate(rows[0]);
+  }
+
+  async getAppealByCase(caseId: string) {
+    const { rows } = await this.pool.query(
+      'SELECT * FROM verdicts WHERE case_id = $1 AND appeal_of IS NOT NULL',
+      [caseId],
+    );
     if (rows.length === 0) return null;
     return this.hydrate(rows[0]);
   }
@@ -455,6 +481,7 @@ function mapVerdict(r: any, validators: ValidatorResult[]): Verdict {
     genlayerTransaction: r.genlayer_transaction,
     genlayerContract: r.genlayer_contract,
     source: r.source,
+    appealOf: r.appeal_of ?? null,
     createdAt: new Date(r.created_at).toISOString(),
   };
 }

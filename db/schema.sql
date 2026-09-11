@@ -49,9 +49,19 @@ CREATE TABLE IF NOT EXISTS verdicts (
   genlayer_contract         TEXT,
   -- 'GENLAYER' or 'DEMO' — the frontend must not conflate them.
   source                    TEXT        NOT NULL CHECK (source IN ('GENLAYER','DEMO')),
+  -- Set when this row is an APPEAL ruling; points at the verdict it reviewed.
+  -- The original verdict row is never modified, so a case can hold both.
+  appeal_of                 TEXT        REFERENCES verdicts(id) ON DELETE SET NULL,
   created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (case_id)
+  -- At most ONE original verdict and ONE appeal ruling per case. A plain
+  -- UNIQUE(case_id) would reject the appeal row outright.
+  UNIQUE (case_id, appeal_of)
 );
+
+-- UNIQUE treats NULLs as distinct, so the original-verdict slot needs its own
+-- partial index to stay single.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_verdicts_one_original
+  ON verdicts(case_id) WHERE appeal_of IS NULL;
 
 CREATE TABLE IF NOT EXISTS validator_results (
   id              TEXT PRIMARY KEY,
@@ -81,3 +91,4 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS cases_touch ON cases;
 CREATE TRIGGER cases_touch BEFORE UPDATE ON cases
   FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+CREATE INDEX IF NOT EXISTS idx_verdicts_appeal_of ON verdicts(appeal_of);

@@ -423,3 +423,43 @@ The API and pages ship together, but you can host the static pages elsewhere
 
 Worth knowing: this splits the deployment but does **not** avoid Render's cold
 start. The pages load instantly; the first API call still wakes the backend.
+
+## Appeals (v2)
+
+A decided case can be appealed once, with new evidence. This is a **second
+consensus event on GenLayer**, not a re-run of the first.
+
+`POST /api/cases/:id/appeal  { "newEvidence": "..." }`
+
+The contract method `appeal_case(case_id, new_evidence)` shows an appeal panel
+the original ruling *and* the new evidence, and applies an explicit standard:
+**the burden of proof is on the appellant**. The original decision stands unless
+the new evidence positively contradicts or materially undermines the findings it
+rested on. Evidence that merely re-argues the original facts is recorded as
+`immaterial` and the ruling is upheld.
+
+Two integrity properties are enforced in the contract, not the UI:
+
+- The model cannot report `UPHELD` while quietly changing the decision (or the
+  reverse) — outcome and decision are reconciled before the result is returned.
+- Validators must agree on the *outcome*, the *decision* and whether the new
+  evidence was material. Prose is never compared.
+
+The original verdict is never overwritten. The contract keeps appeals in a
+separate map, so both rulings stay readable on-chain with their own transaction
+hashes (`get_verdict` / `get_appeal`). In the database the appeal is a second
+verdict row linked by `appeal_of`.
+
+Appeals are **unavailable in demo mode** — an appeal without real validator
+consensus would be theatre.
+
+Verified live on studionet:
+
+| Grounds | Assessment | Outcome |
+| --- | --- | --- |
+| "I watched it again, still think it was fine" | `immaterial` | UPHELD (PENALTY stands) |
+| "Goal-line angle shows the defender played the ball first" | `material` | OVERTURNED (PENALTY -> NO_PENALTY) |
+| Handball: "ball deflected off his own thigh at close range" | `material` | OVERTURNED |
+
+New contract methods: `appeal_case`, `get_appeal`, `has_appeal`,
+`get_appeal_count`.

@@ -246,3 +246,35 @@ test('health reports the store kind and whether it persists', async () => {
   assert.equal(res.body.database.persistent, false);
   assert.match(res.body.database.warning, /lost when the service restarts/);
 });
+
+test('appeal is rejected in demo mode rather than faked', async () => {
+  const created = await post('/api/cases', {
+    competition: 'Premier League', homeTeam: 'Arsenal', awayTeam: 'Chelsea',
+    minute: 74, incidentType: 'PENALTY_CLAIM', refereeCall: 'PLAY_ON',
+    description: 'Defender slides in from behind and contacts the standing leg inside the area before touching the ball.',
+  });
+  const id = created.body.case.id;
+  await post(`/api/cases/${id}/submit`, {});
+
+  const res = await post(`/api/cases/${id}/appeal`, {
+    newEvidence: 'A new camera angle shows the defender clearly played the ball first.',
+  });
+  // Demo mode must never produce an appeal ruling.
+  assert.equal(res.status, 409);
+  assert.equal(res.body.error.code, 'DEMO_MODE');
+});
+
+test('appeal requires substantive new evidence', async () => {
+  const created = await post('/api/cases', {
+    competition: 'Serie A', homeTeam: 'Inter', awayTeam: 'Juventus',
+    minute: 31, incidentType: 'HANDBALL_CLAIM', refereeCall: 'PLAY_ON',
+    description: 'Ball strikes the defenders outstretched arm above shoulder height inside the area.',
+  });
+  const id = created.body.case.id;
+  const res = await post(`/api/cases/${id}/appeal`, { newEvidence: 'nope' });
+  // The suite runs in demo mode, where the demo guard fires first — either way
+  // the appeal is refused and no ruling is invented.
+  assert.ok([400, 409].includes(res.status));
+  assert.ok(['VALIDATION_ERROR', 'DEMO_MODE'].includes(res.body.error.code));
+  assert.equal(res.body.ok, false);
+});

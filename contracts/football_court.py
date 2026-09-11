@@ -100,10 +100,17 @@ class FootballCourt(gl.Contract):
     cases: TreeMap[str, str]
     # case_id -> JSON string of the verdict produced by validator consensus
     verdicts: TreeMap[str, str]
+    # case_id -> JSON string of the APPEAL verdict, when a case has been appealed.
+    # The original verdict is never overwritten; both remain readable on-chain.
+    appeals: TreeMap[str, str]
+    # case_id -> the new evidence submitted with the appeal
+    appeal_grounds: TreeMap[str, str]
     case_count: u256
+    appeal_count: u256
 
     def __init__(self) -> None:
         self.case_count = u256(0)
+        self.appeal_count = u256(0)
 
     # -----------------------------------------------------------------------
     # 1. OPEN A CASE — pure storage, deterministic, no AI involved.
@@ -308,6 +315,171 @@ Respond with ONLY this JSON object and nothing else:
         # Callers parse this string; get_verdict() returns the same shape.
         return verdict_json
 
+
+    # -----------------------------------------------------------------------
+    # 3. APPEAL A DECIDED CASE — a second, higher bar of review.
+    #
+    # This is not "run it again and hope". An appeal panel is shown the
+    # original verdict and the new evidence, and is told that the burden of
+    # proof sits with the appellant: the first ruling STANDS unless the new
+    # evidence positively undermines it. That asymmetry is the whole point of
+    # an appeal, and it is enforced in the prompt, not in the UI.
+    # -----------------------------------------------------------------------
+    @gl.public.write
+    def appeal_case(self, case_id: str, new_evidence: str) -> str:
+        assert case_id in self.cases, "unknown case"
+        assert case_id in self.verdicts, "case has not been judged yet"
+        assert case_id not in self.appeals, "case has already been appealed"
+        assert len(new_evidence) >= 20, "appeal needs substantive new evidence"
+        assert len(new_evidence) <= 4000, "appeal grounds too long"
+
+        payload = self.cases[case_id]
+        original_json = self.verdicts[case_id]
+        data = json.loads(payload)
+        original = json.loads(original_json)
+
+        incident_type = data.get("incidentType", "")
+        options = DECISIONS_BY_INCIDENT[incident_type] + [INSUFFICIENT]
+        law_context = _laws_for(incident_type)
+
+        competition = str(data.get("competition", "Unknown competition"))
+        home_team = str(data.get("homeTeam", "Home"))
+        away_team = str(data.get("awayTeam", "Away"))
+        minute = str(data.get("minute", "?"))
+        description = str(data.get("description", ""))
+        referee_call = str(data.get("refereeCall", "not stated"))
+
+        original_decision = str(original.get("decision", ""))
+        original_confidence = str(original.get("confidence", ""))
+        original_reasoning = str(original.get("reasoning", ""))
+
+        prompt = f"""You are sitting on a football APPEAL panel. A case has already been judged.
+Your job is to decide whether the new evidence overturns that ruling.
+
+=================== ORIGINAL CASE ===================
+Competition : {competition}
+Match       : {home_team} vs {away_team}
+Minute      : {minute}
+Incident    : {incident_type}
+On-field call: {referee_call}
+
+Original description:
+\"\"\"{description}\"\"\"
+
+=================== RULING UNDER APPEAL ===================
+Decision   : {original_decision}
+Confidence : {original_confidence}
+Reasoning  : {original_reasoning}
+
+=================== NEW EVIDENCE SUBMITTED ON APPEAL ===================
+\"\"\"{new_evidence}\"\"\"
+
+=================== APPLICABLE LAW ===================
+{law_context}
+
+=================== THE APPEAL STANDARD ===================
+The burden of proof is on the appellant. This is NOT a fresh trial.
+
+- The original decision STANDS unless the new evidence positively contradicts
+  or materially undermines the findings it rested on.
+- New evidence that merely restates, re-emphasises or re-argues the original
+  facts is NOT grounds to overturn. Say so plainly and uphold.
+- If the new evidence introduces a fact that changes the legal analysis under
+  the Law above, you may overturn.
+- If the new evidence is vague, unverifiable or irrelevant, UPHOLD.
+- You have NOT watched any footage. URLs are references only. Never describe
+  video you were not given in text. Do not invent facts.
+
+Reason in this order: WHAT IS NEW -> DOES IT BEAR ON THE FINDING -> DOES THE
+LAW APPLY DIFFERENTLY -> UPHOLD OR OVERTURN -> CONFIDENCE.
+
+=================== OUTPUT ===================
+Respond with ONLY this JSON object and nothing else:
+{{
+  "outcome": "UPHELD" or "OVERTURNED",
+  "decision": one of {json.dumps(options)},
+  "confidence": a number between 0.0 and 1.0,
+  "reasoning": "3-6 sentences: what the new evidence adds, whether it bears on the original finding, and why that does or does not change the ruling",
+  "newEvidenceAssessment": "material" | "immaterial" | "unverifiable",
+  "changedFromOriginal": true or false
+}}
+
+If outcome is UPHELD, "decision" MUST equal {json.dumps(original_decision)}."""
+
+        def leader_fn() -> str:
+            raw = gl.nondet.exec_prompt(prompt)
+            cleaned = raw.replace("```json", "").replace("```", "").strip()
+            parsed = json.loads(cleaned)
+
+            decision = str(parsed.get("decision", "")).upper().strip()
+            if decision not in options:
+                decision = original_decision
+
+            outcome = str(parsed.get("outcome", "")).upper().strip()
+            if outcome not in ("UPHELD", "OVERTURNED"):
+                outcome = "UPHELD"
+
+            # Enforce internal consistency: the model does not get to say
+            # "UPHELD" while quietly changing the decision, or vice versa.
+            if outcome == "UPHELD":
+                decision = original_decision
+            elif decision == original_decision:
+                outcome = "UPHELD"
+
+            try:
+                confidence = float(parsed.get("confidence", 0.0))
+            except (TypeError, ValueError):
+                confidence = 0.0
+            confidence = max(0.0, min(1.0, confidence))
+
+            assessment = str(parsed.get("newEvidenceAssessment", "immaterial"))
+            if assessment not in ("material", "immaterial", "unverifiable"):
+                assessment = "immaterial"
+
+            normalized = {
+                "outcome": outcome,
+                "decision": decision,
+                "originalDecision": original_decision,
+                "confidence": round(confidence, 2),
+                "reasoning": str(parsed.get("reasoning", ""))[:2000],
+                "newEvidenceAssessment": assessment,
+                "changedFromOriginal": outcome == "OVERTURNED",
+            }
+            return json.dumps(normalized, sort_keys=True)
+
+        def validator_fn(leader_result) -> bool:
+            if not isinstance(leader_result, gl.vm.Return):
+                return False
+            leader_raw = leader_result.calldata
+            if not isinstance(leader_raw, str):
+                return False
+            try:
+                leader_view = json.loads(leader_raw)
+                my_view = json.loads(leader_fn())
+            except Exception:
+                return False
+
+            # Upholding vs overturning is the operative call — it must match.
+            if leader_view.get("outcome") != my_view.get("outcome"):
+                return False
+            if leader_view.get("decision") != my_view.get("decision"):
+                return False
+            # Whether the new evidence mattered at all must also agree.
+            if leader_view.get("newEvidenceAssessment") != my_view.get("newEvidenceAssessment"):
+                return False
+            try:
+                delta = abs(float(leader_view.get("confidence", 0)) - float(my_view.get("confidence", 0)))
+            except (TypeError, ValueError):
+                return False
+            return delta <= CONFIDENCE_TOLERANCE
+
+        appeal_json = gl.vm.run_nondet(leader_fn, validator_fn)
+
+        self.appeals[case_id] = appeal_json
+        self.appeal_grounds[case_id] = new_evidence
+        self.appeal_count = u256(self.appeal_count + 1)
+        return appeal_json
+
     # -----------------------------------------------------------------------
     # Read methods
     # -----------------------------------------------------------------------
@@ -330,3 +502,17 @@ Respond with ONLY this JSON object and nothing else:
     @gl.public.view
     def get_case_count(self) -> int:
         return int(self.case_count)
+
+    @gl.public.view
+    def get_appeal(self, case_id: str) -> str:
+        if case_id not in self.appeals:
+            return ""
+        return self.appeals[case_id]
+
+    @gl.public.view
+    def has_appeal(self, case_id: str) -> bool:
+        return case_id in self.appeals
+
+    @gl.public.view
+    def get_appeal_count(self) -> int:
+        return int(self.appeal_count)

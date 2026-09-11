@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { config, genlayerConfigured } from '../config/index.js';
 import {
+  appealCase,
   createCase,
   getCase,
   getStatus,
@@ -60,5 +61,8 @@ router.post('/cases', createCase);
 router.get('/cases', listCases);
 router.get('/cases/:id', getCase);
 router.post('/cases/:id/submit', submitCase);
+
+/** POST /api/cases/:id/appeal — a second GenLayer review with new evidence. */
+router.post('/cases/:id/appeal', appealCase);
 router.get('/cases/:id/status', getStatus);
 router.get('/verdicts/:id', getVerdict);

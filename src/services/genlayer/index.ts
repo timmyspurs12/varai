@@ -254,3 +254,95 @@ export async function verifyContractLive(): Promise<
     return { ok: false, error: message };
   }
 }
+
+export interface AppealPayload {
+  outcome: 'UPHELD' | 'OVERTURNED';
+  decision: string;
+  originalDecision: string;
+  confidence: number;
+  reasoning: string;
+  newEvidenceAssessment: 'material' | 'immaterial' | 'unverifiable';
+  changedFromOriginal: boolean;
+}
+
+export interface GenLayerAppeal {
+  payload: AppealPayload;
+  consensus: ConsensusReport;
+  txHash: string;
+  contractAddress: string;
+  explorer: string | null;
+}
+
+/**
+ * Appeal a case that already has a verdict.
+ *
+ * The original verdict is never overwritten — the contract stores the appeal
+ * separately so both rulings stay readable on-chain, each with its own
+ * transaction. An appeal is a second consensus event, not a re-run.
+ */
+export async function appealCaseOnChain(
+  caseId: string,
+  newEvidence: string,
+): Promise<GenLayerAppeal> {
+  const client = safeClient('appeal_case');
+
+  logger.info({ caseId }, 'GenLayer: appeal_case (appeal panel execution)');
+
+  let txHash: string;
+  try {
+    txHash = await client.writeContract({
+      address: config.genlayer.contractAddress as `0x${string}`,
+      functionName: 'appeal_case',
+      args: [caseId, newEvidence],
+      value: 0n,
+    });
+  } catch (err) {
+    throw new GenLayerError(
+      `Could not start the appeal transaction: ${(err as Error).message}`,
+      'appeal_case',
+    );
+  }
+
+  const receipt: any = await waitFor(client, txHash, 'appeal_case');
+
+  const execResult = receipt?.txExecutionResultName ?? receipt?.txExecutionResult;
+  if (typeof execResult === 'string' && execResult.includes('ERROR')) {
+    throw new GenLayerError(
+      `Appeal execution failed on-chain (${execResult}).`,
+      'appeal_case',
+      txHash,
+    );
+  }
+
+  const consensus = extractConsensus(receipt);
+
+  // Read committed state rather than trusting the receipt.
+  const raw = await client.readContract({
+    address: config.genlayer.contractAddress as `0x${string}`,
+    functionName: 'get_appeal',
+    args: [caseId],
+  });
+
+  let payload: AppealPayload;
+  try {
+    payload = JSON.parse(String(raw)) as AppealPayload;
+  } catch {
+    throw new GenLayerError('Appeal result could not be parsed.', 'read_appeal', txHash);
+  }
+  if (!payload?.outcome || !payload?.decision) {
+    throw new GenLayerError('Appeal result is missing an outcome.', 'read_appeal', txHash);
+  }
+
+  logger.info(
+    { caseId, outcome: payload.outcome, decision: payload.decision, agree: consensus.agree },
+    'GenLayer: appeal decided',
+  );
+
+  return {
+    payload,
+    consensus,
+    txHash,
+    contractAddress: config.genlayer.contractAddress,
+    explorer: explorerUrl(txHash),
+  };
+}

@@ -6,7 +6,7 @@ import { CASE_STATUS } from '../types/index.js';
 import { createCaseSchema, idSchema, listQuerySchema } from '../utils/validation.js';
 import { ApiError } from '../utils/errors.js';
 import { decorateVerdict, isInFlight, runJudgment } from '../services/caseService.js';
-import { GenLayerError } from '../services/genlayer/index.js';
+import { GenLayerError, appealCaseOnChain } from '../services/genlayer/index.js';
 import { DEMO_WARNING } from '../services/genlayer/demo.js';
 
 /** POST /api/cases — create a case (does NOT judge it). */
@@ -216,4 +216,120 @@ function requireId(raw: unknown): string {
   const parsed = idSchema.safeParse(raw);
   if (!parsed.success) throw new ApiError(400, 'VALIDATION_ERROR', 'Invalid id format');
   return parsed.data;
+}
+
+
+/**
+ * POST /api/cases/:id/appeal
+ *
+ * A second, independent GenLayer review of a case that already has a verdict.
+ * The original verdict is preserved — the contract stores the appeal in its own
+ * map, so both rulings stay on-chain with separate transaction hashes.
+ *
+ * Appeals are unavailable in demo mode: an appeal without real validator
+ * consensus would be theatre, and VARAI never dresses demo data as a judgment.
+ */
+export async function appealCase(req: Request, res: Response, next: NextFunction) {
+  const id = req.params.id;
+  try {
+    const caseId = requireId(id);
+
+    const found = await store.getCase(caseId);
+    if (!found) throw new ApiError(404, 'NOT_FOUND', 'Case not found');
+
+    if (config.demoMode) {
+      throw new ApiError(
+        409,
+        'DEMO_MODE',
+        'Appeals require a real GenLayer contract. ' + DEMO_WARNING,
+      );
+    }
+
+    const original = await store.getVerdictByCase(caseId);
+    if (!original) {
+      throw new ApiError(409, 'NOT_JUDGED', 'This case has no verdict to appeal yet.');
+    }
+    // Guard against a second appeal. getVerdictByCase() returns the ORIGINAL
+    // verdict, so checking its own appealOf never fires — we have to look for
+    // an existing appeal row. The contract also rejects this, but failing here
+    // saves a pointless transaction and a 60s wait.
+    const priorAppeal = await store.getAppealByCase(caseId);
+    if (priorAppeal) {
+      throw new ApiError(409, 'ALREADY_APPEALED', 'This case has already been appealed once.', {
+        appealVerdictId: priorAppeal.id,
+      });
+    }
+
+    const grounds = typeof req.body?.newEvidence === 'string' ? req.body.newEvidence.trim() : '';
+    if (grounds.length < 20) {
+      throw new ApiError(
+        400,
+        'VALIDATION_ERROR',
+        'An appeal must supply new evidence of at least 20 characters.',
+      );
+    }
+    if (grounds.length > 4000) {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'Appeal grounds must be under 4000 characters.');
+    }
+
+    if (isInFlight(caseId)) {
+      throw new ApiError(409, 'ALREADY_JUDGING', 'This case is already being judged.');
+    }
+
+    logger.info({ caseId }, 'appeal requested');
+
+    let result;
+    try {
+      result = await appealCaseOnChain(caseId, grounds);
+    } catch (err) {
+      if (err instanceof GenLayerError) {
+        await store.setStatus(caseId, 'FAILED', { failureReason: err.message });
+        throw new ApiError(502, 'APPEAL_FAILED', err.message, {
+          stage: err.stage,
+          transaction: err.txHash ?? null,
+          note: 'No appeal ruling was produced. VARAI does not invent one when GenLayer fails.',
+        });
+      }
+      throw err;
+    }
+
+    const { payload, consensus, txHash, explorer } = result;
+
+    // Stored as a verdict row linked back to the original by appealOf, so the
+    // existing verdict pipeline, decoration and integrity checks all apply.
+    const saved = await store.saveVerdict({
+      caseId,
+      decision: payload.decision,
+      confidence: payload.confidence,
+      consensus,
+      reasoning: payload.reasoning,
+      criteria: {
+        outcome: payload.outcome,
+        originalDecision: payload.originalDecision,
+        newEvidenceAssessment: payload.newEvidenceAssessment,
+      },
+      alternativeInterpretation: '',
+      validators: consensus.validators,
+      genlayerTransaction: txHash,
+      genlayerContract: config.genlayer.contractAddress,
+      source: 'GENLAYER',
+      appealOf: original.id,
+    });
+
+    logger.info(
+      { caseId, outcome: payload.outcome, decision: payload.decision },
+      'appeal decided',
+    );
+
+    res.status(201).json({
+      ok: true,
+      outcome: payload.outcome,
+      changed: payload.changedFromOriginal,
+      originalVerdict: decorateVerdict(original),
+      appealVerdict: decorateVerdict(saved),
+      newEvidenceAssessment: payload.newEvidenceAssessment,
+    });
+  } catch (err) {
+    next(err);
+  }
 }

@@ -125,6 +125,11 @@ export interface Verdict {
   genlayerTransaction: string | null;
   genlayerContract: string | null;
   source: VerdictSource;
+  /**
+   * When set, this verdict is an APPEAL ruling and the value is the id of the
+   * original verdict it reviewed. The original is never overwritten.
+   */
+  appealOf?: string | null;
   createdAt: string;
 }
 
