@@ -96,6 +96,8 @@ function startupHint(err: unknown): string | undefined {
     return 'That database name does not exist. Check the path at the end of DATABASE_URL.';
   if (code === '42P01' || /relation .* does not exist/i.test(text))
     return 'Tables are missing. Load db/schema.sql into the database (see NEON-SETUP.md Step 4).';
+  if (/missing public\.verdicts\.appeal_of|appeal_of.*does not exist/i.test(text))
+    return 'The appeals database migration is missing. Run `npm run db:migrate`; production startup applies it automatically.';
   if (/self.signed|certificate/i.test(text))
     return 'TLS rejected the certificate. Set DATABASE_SSL=true and keep ?sslmode=require in the URL.';
   return undefined;

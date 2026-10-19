@@ -68,8 +68,9 @@ Frontend renders "GenLayer Decision" + transaction hash
 
 ```
 contracts/football_court.py   ← THE INTELLIGENT CONTRACT (all judging happens here)
-db/schema.sql                 PostgreSQL schema
-scripts/                      deploy + keygen
+db/schema.sql                 PostgreSQL base schema (safe to re-run)
+db/migrations/                 versioned, transactional Postgres upgrades
+scripts/                      migrations, deploy + keygen
 src/
   config/                     env + demo-mode switch
   routes/                     endpoint definitions
@@ -265,8 +266,8 @@ src/           API: routes, controllers, services, models
   services/genlayer/   all GenLayer code, isolated
 contracts/     football_court.py — the Intelligent Contract
 design/        design system + generators for the landing page
-db/            schema.sql
-tests/         16 tests
+db/            schema.sql + versioned migrations
+tests/         API and integrity tests
 ```
 
 ### Commands
@@ -279,6 +280,8 @@ npm run build        # compile to dist/
 npm start            # run compiled build
 npm run design       # regenerate public/index.html from design/src
 npm run design:card  # re-export the 1080x1080 verdict card
+npm run db:migrate   # apply pending PostgreSQL migrations
+npm run db:check     # verify database tables and required columns
 ```
 
 The landing page is **generated**. Edit `design/src/page.py`, `app.css`,
@@ -358,6 +361,10 @@ curl "$API/api/cases/$ID/status"                      # poll → verdict
 
 The synchronous form (no `?async=true`) remains available for local use and demo mode.
 
+For an existing database, `npm start` applies pending, transactional migrations
+before launching the API. A brand-new database still needs the base schema once:
+`npm run db:schema`, followed by `npm run db:migrate` (or simply `npm start`).
+Use `npm run db:check` to verify that `verdicts.appeal_of` is present.
 
 ```bash
 npm run build && npm start
@@ -367,7 +374,7 @@ Checklist:
 
 - [ ] `VARAI_DEMO_MODE=false`
 - [ ] `DATABASE_URL` → managed Postgres, `DATABASE_SSL=true`
-- [ ] `db/schema.sql` applied
+- [ ] Base `db/schema.sql` applied to a brand-new database (pending upgrades run automatically at startup)
 - [ ] `GENLAYER_PRIVATE_KEY` from a secret manager, **never** in git
 - [ ] Signing address funded
 - [ ] `CORS_ORIGIN` set to your real frontend origin

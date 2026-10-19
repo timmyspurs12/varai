@@ -44,8 +44,8 @@ varai/
 │   ├── src/         page.py, app.css, app.js, tokens.css, mark.svg
 │   ├── fonts/       Space Grotesk, DM Sans, IBM Plex Mono (embedded)
 │   └── assets/      pitch.svg, planview.svg, verdict card
-├── db/schema.sql    cases, evidence, verdicts, validator_results
-├── tests/           16 tests
+├── db/schema.sql    base schema; db/migrations/ holds versioned upgrades
+├── tests/           API and integrity tests
 ├── README.md        full technical documentation
 ├── DEPLOY.md        git commands + free hosting, step by step
 └── BRAND-DIRECTION.md   visual identity rationale
@@ -66,6 +66,8 @@ npm run design       # rebuild the landing page into public/
 npm run design:card  # re-export the 1080x1080 verdict card
 npm run genkey       # generate a GenLayer keypair
 npm run deploy:contract   # deploy the Intelligent Contract
+npm run db:migrate         # apply pending Postgres migrations
+npm run db:check           # verify the database schema
 ```
 
 Editing the landing page means editing `design/src/`, then `npm run design`.

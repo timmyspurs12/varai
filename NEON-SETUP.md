@@ -86,9 +86,10 @@ That whole string is your `DATABASE_URL`.
 
 ## Step 4 — Create the tables
 
-A fresh Neon database is **empty**. Your app expects four tables, so you have to
-load `db/schema.sql` once. If you skip this, the app connects fine and then
-errors on the first request with `relation "cases" does not exist`.
+A fresh Neon database is **empty**. Load `db/schema.sql` once to create the four
+base tables. On startup, the app applies any tracked migrations before serving
+requests; existing installs can apply them explicitly with `npm run db:migrate`.
+If the base schema is missing, startup fails with `relation "cases" does not exist`.
 
 ### The easy way — Neon's SQL Editor (no install)
 
@@ -97,8 +98,8 @@ errors on the first request with `relation "cases" does not exist`.
 3. Select all, copy, paste into the SQL Editor
 4. Click **Run**
 
-You should see a series of success messages. One **notice** is expected and
-harmless:
+You should see a series of success messages. Harmless notices may appear when
+an already-present column, index, or trigger is skipped; for example:
 
 ```
 NOTICE: trigger "cases_touch" for relation "cases" does not exist, skipping
@@ -112,10 +113,13 @@ Still in the SQL Editor, run:
 
 ```sql
 SELECT table_name FROM information_schema.tables
-WHERE table_schema = 'public' ORDER BY table_name;
+WHERE table_schema = 'public'
+  AND table_name IN ('cases','evidence','validator_results','verdicts')
+ORDER BY table_name;
 ```
 
-You must get exactly these four:
+You must get these four application tables (`schema_migrations` is added as a
+fifth bookkeeping table the first time the app applies a migration):
 
 ```
 cases
@@ -130,10 +134,12 @@ file again.
 ### The psql way (only if you have psql installed)
 
 ```bash
-psql "postgresql://neondb_owner:npg_...@ep-....neon.tech/neondb?sslmode=require" -f db/schema.sql
+psql "postgresql://neondb_owner:npg_...@ep-....neon.tech/neondb?sslmode=require" -v ON_ERROR_STOP=1 -f db/schema.sql
 ```
 
-Keep the quotes — the `?` in the URL breaks the shell otherwise.
+Keep the quotes — the `?` in the URL breaks the shell otherwise. For an
+existing installation, run `npm run db:migrate`; pending migrations are also
+applied automatically by `npm start` before the API opens its port.
 
 ---
 
@@ -226,6 +232,7 @@ all four tables exist — naming exactly what is wrong if something is.
   ok  database neondb
   ok  connected — PostgreSQL 17.5
   ok  all 4 tables present
+  ok  appeals migration applied (verdicts.appeal_of present)
   ok  0 case(s), 0 verdict(s) stored
 
 Database is ready.
@@ -241,6 +248,12 @@ Run the same command on Render via **Shell** to check the deployed environment.
 
 Step 4 did not run, or ran against a different database. Re-run `db/schema.sql`
 in the SQL Editor and re-check the four table names.
+
+### `database is missing public.verdicts.appeal_of`
+
+The database predates appeals. Run `npm run db:migrate` with the same
+`DATABASE_URL`/`DATABASE_SSL` as the app, or deploy the current build; `npm start`
+applies pending migrations before serving traffic. Verify with `npm run db:check`.
 
 ### The server refuses to start
 

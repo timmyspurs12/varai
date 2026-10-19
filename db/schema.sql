@@ -1,6 +1,6 @@
 -- ============================================================
 -- VARAI — PostgreSQL schema
--- Run:  psql "$DATABASE_URL" -f db/schema.sql
+-- Run:  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/schema.sql
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS cases (
@@ -57,6 +57,84 @@ CREATE TABLE IF NOT EXISTS verdicts (
   -- UNIQUE(case_id) would reject the appeal row outright.
   UNIQUE (case_id, appeal_of)
 );
+
+-- Keep the schema script usable against databases created before appeals.
+-- CREATE TABLE IF NOT EXISTS does not add columns to an existing table.
+ALTER TABLE public.verdicts
+  ADD COLUMN IF NOT EXISTS appeal_of TEXT;
+
+DO $$
+DECLARE
+  case_att smallint;
+  id_att smallint;
+  appeal_att smallint;
+  item record;
+BEGIN
+  SELECT attnum INTO case_att FROM pg_attribute
+    WHERE attrelid = 'public.verdicts'::regclass AND attname = 'case_id' AND NOT attisdropped;
+  SELECT attnum INTO id_att FROM pg_attribute
+    WHERE attrelid = 'public.verdicts'::regclass AND attname = 'id' AND NOT attisdropped;
+  SELECT attnum INTO appeal_att FROM pg_attribute
+    WHERE attrelid = 'public.verdicts'::regclass AND attname = 'appeal_of' AND NOT attisdropped;
+
+  IF case_att IS NULL OR id_att IS NULL OR appeal_att IS NULL THEN
+    RAISE EXCEPTION 'verdicts is missing a required id, case_id, or appeal_of column';
+  END IF;
+
+  -- The self-reference is present on a fresh schema but must be added when
+  -- upgrading an older verdicts table.
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.verdicts'::regclass
+      AND contype = 'f'
+      AND confrelid = 'public.verdicts'::regclass
+      AND conkey = ARRAY[appeal_att]::smallint[]
+      AND confkey = ARRAY[id_att]::smallint[]
+  ) THEN
+    ALTER TABLE public.verdicts
+      ADD CONSTRAINT verdicts_appeal_of_fkey
+      FOREIGN KEY (appeal_of) REFERENCES public.verdicts(id) ON DELETE SET NULL;
+  END IF;
+
+  -- Older schemas enforced one verdict per case with UNIQUE(case_id). Remove
+  -- that constraint so a second, appeal verdict can be stored.
+  FOR item IN
+    SELECT conname FROM pg_constraint
+    WHERE conrelid = 'public.verdicts'::regclass
+      AND contype = 'u'
+      AND conkey = ARRAY[case_att]::smallint[]
+  LOOP
+    EXECUTE format('ALTER TABLE public.verdicts DROP CONSTRAINT %I', item.conname);
+  END LOOP;
+
+  -- Also remove a legacy standalone unique index on case_id, if there is one.
+  FOR item IN
+    SELECT ns.nspname, idx.relname
+    FROM pg_index i
+    JOIN pg_class idx ON idx.oid = i.indexrelid
+    JOIN pg_namespace ns ON ns.oid = idx.relnamespace
+    WHERE i.indrelid = 'public.verdicts'::regclass
+      AND i.indisunique
+      AND NOT i.indisprimary
+      AND i.indpred IS NULL
+      AND i.indnkeyatts = 1
+      AND i.indkey[0] = case_att
+  LOOP
+    EXECUTE format('DROP INDEX IF EXISTS %I.%I', item.nspname, item.relname);
+  END LOOP;
+
+  -- A composite unique constraint caps appeals at one per original verdict.
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.verdicts'::regclass
+      AND contype = 'u'
+      AND conkey = ARRAY[case_att, appeal_att]::smallint[]
+  ) THEN
+    ALTER TABLE public.verdicts
+      ADD CONSTRAINT verdicts_case_id_appeal_of_key UNIQUE (case_id, appeal_of);
+  END IF;
+END;
+$$;
 
 -- UNIQUE treats NULLs as distinct, so the original-verdict slot needs its own
 -- partial index to stay single.

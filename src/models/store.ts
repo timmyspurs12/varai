@@ -228,6 +228,21 @@ class PostgresStore implements Store {
       );
     }
 
+    const { rows: appealColumn } = await this.pool.query(
+      `SELECT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND table_name = 'verdicts'
+           AND column_name = 'appeal_of'
+       ) AS present`,
+    );
+    if (!appealColumn[0]?.present) {
+      throw new Error(
+        'database is missing public.verdicts.appeal_of — run `npm run db:migrate` ' +
+          'or deploy the current build, which applies migrations before startup',
+      );
+    }
+
     logger.info({ host: safeHost(config.database.url) }, 'PostgreSQL connected');
   }
 
