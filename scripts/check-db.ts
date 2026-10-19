@@ -92,13 +92,31 @@ async function main() {
   if (missing.length) {
     bad(`missing tables: ${missing.join(', ')}`);
     console.log('\n      Load the schema into this database:');
-    console.log('        psql "$DATABASE_URL" -f db/schema.sql');
+    console.log('        psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/schema.sql');
     console.log('      or paste db/schema.sql into the Neon SQL Editor.');
     console.log('      See NEON-SETUP.md Step 4.\n');
     await pool.end().catch(() => {});
     process.exit(1);
   }
   ok(`all 4 tables present (${found.join(', ')})`);
+
+  const { rows: appealColumn } = await pool.query(
+    `SELECT EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'verdicts'
+         AND column_name = 'appeal_of'
+     ) AS present`,
+  );
+  if (!appealColumn[0]?.present) {
+    bad('missing column: public.verdicts.appeal_of');
+    console.log('\n      Apply the appeals migration with:');
+    console.log('        npm run db:migrate');
+    console.log('      Production `npm start` applies pending migrations automatically.\n');
+    await pool.end().catch(() => {});
+    process.exit(1);
+  }
+  ok('appeals migration applied (verdicts.appeal_of present)');
 
   const { rows: counts } = await pool.query(
     'SELECT (SELECT count(*) FROM cases)::int AS cases, (SELECT count(*) FROM verdicts)::int AS verdicts',

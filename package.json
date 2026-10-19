@@ -10,12 +10,13 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/src/server.js",
+    "start": "node dist/scripts/migrate.js && node dist/src/server.js",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "genkey": "tsx scripts/generate-key.ts",
     "deploy:contract": "tsx scripts/deploy-contract.ts",
-    "db:schema": "psql \"$DATABASE_URL\" -f db/schema.sql",
+    "db:schema": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f db/schema.sql",
+    "db:migrate": "tsx scripts/migrate.ts",
     "design": "cd design && python3 build.py",
     "design:card": "cd design && python3 export_card.py",
     "db:check": "tsx scripts/check-db.ts"

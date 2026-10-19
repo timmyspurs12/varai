@@ -155,11 +155,11 @@ Neon over Supabase here: Neon's free tier **never expires**, while Supabase paus
 4. Create the tables:
 
 ```bash
-# If you have psql:
-psql "postgresql://user:pass@ep-xxx.../neondb?sslmode=require" -f db/schema.sql
+# On a brand-new database, create the base tables:
+psql "postgresql://user:pass@ep-xxx.../neondb?sslmode=require" -v ON_ERROR_STOP=1 -f db/schema.sql
 ```
 
-No psql? Open the **SQL Editor** in the Neon dashboard, paste the contents of `db/schema.sql`, and hit Run.
+No psql? Open the **SQL Editor** in the Neon dashboard, paste the contents of `db/schema.sql`, and hit Run. The `npm start` command applies pending versioned migrations before the API starts; for an existing database, you can also run `npm run db:migrate` manually.
 
 **Free tier:** 0.5 GB storage, 100 compute-hours/month, scales to zero when idle. Plenty for VARAI.
 
@@ -341,12 +341,19 @@ than on a user's first submission. A malformed value (e.g. a leftover
 `0xTHE_PRINTED_ADDRESS` placeholder) is rejected even earlier — the server
 refuses to start.
 
+### `database is missing public.verdicts.appeal_of`
+
+The database was created before appeal support. Run `npm run db:migrate` with
+the app's `DATABASE_URL` and `DATABASE_SSL`; production `npm start` also applies
+pending migrations automatically before opening the API port.
+
 ### `DATABASE_URL not set — using in-memory store`
 
 Not an error. VARAI runs fine without a database; cases and verdicts just live in
 memory and vanish on restart, which is what you want for a quick local run. Set
-`DATABASE_URL` to a Neon/Postgres connection string (and load `db/schema.sql`)
-when you want cases to survive a restart. Check it with `npm run db:check`.
+`DATABASE_URL` to a Neon/Postgres connection string and load `db/schema.sql` only
+for a brand-new database. `npm start` applies pending migrations automatically;
+check the database with `npm run db:check`.
 
 ### "Deployed" but every read says `Contract 0x... not found`
 

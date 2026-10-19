@@ -31,4 +31,4 @@ COPY scripts ./scripts
 USER node
 
 EXPOSE 4000
-CMD ["node", "dist/src/server.js"]
+CMD ["npm", "start"]
